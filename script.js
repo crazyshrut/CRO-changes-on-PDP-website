@@ -124,17 +124,139 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  // --- Cart Drawer State & Logic ---
+  let cartItems = [];
+
+  const cartDrawer = document.getElementById("cart-drawer");
+  const cartDrawerOverlay = document.getElementById("cart-drawer-overlay");
+  const cartDrawerClose = document.getElementById("cart-drawer-close");
+  const cartDrawerBody = document.getElementById("cart-drawer-body");
+  const cartSubtotalPrice = document.querySelector(".cart-subtotal-price");
+  const cartCheckoutBtn = document.getElementById("cart-checkout-btn");
+  const cartIconTrigger = document.getElementById("cart-click-trigger");
+
+  const openCart = () => {
+    cartDrawer.classList.add("active");
+    cartDrawerOverlay.classList.add("active");
+  };
+
+  const closeCart = () => {
+    cartDrawer.classList.remove("active");
+    cartDrawerOverlay.classList.remove("active");
+  };
+
+  // Open and close cart drawer handlers
+  if (cartIconTrigger) cartIconTrigger.addEventListener("click", openCart);
+  if (cartDrawerClose) cartDrawerClose.addEventListener("click", closeCart);
+  if (cartDrawerOverlay) cartDrawerOverlay.addEventListener("click", closeCart);
+
+  // Render Cart Contents
+  const updateCartDrawerUI = () => {
+    // Calculate total count and subtotal
+    let totalItems = 0;
+    let subtotal = 0;
+
+    cartItems.forEach(item => {
+      totalItems += item.qty;
+      subtotal += item.price * item.qty;
+    });
+
+    // Update Header Cart Badge
+    if (totalItems > 0) {
+      cartBadge.textContent = totalItems;
+      cartBadge.style.display = "flex";
+    } else {
+      cartBadge.style.display = "none";
+    }
+
+    // Update subtotal display
+    cartSubtotalPrice.textContent = formatPrice(subtotal);
+
+    // Toggle checkout button
+    if (cartCheckoutBtn) {
+      cartCheckoutBtn.disabled = cartItems.length === 0;
+    }
+
+    // Render items list
+    if (cartItems.length === 0) {
+      cartDrawerBody.innerHTML = `<div class="cart-empty-message">Your cart is empty. Add some collagen to start your glow!</div>`;
+      return;
+    }
+
+    cartDrawerBody.innerHTML = "";
+    cartItems.forEach((item, index) => {
+      const itemRow = document.createElement("div");
+      itemRow.className = "cart-item-row";
+      itemRow.innerHTML = `
+        <img class="cart-item-img" src="${item.img}" alt="${item.title}">
+        <div class="cart-item-info">
+          <div class="cart-item-name">${item.title}</div>
+          <div class="cart-item-price">${formatPrice(item.price)}</div>
+          <div class="cart-item-qty-control">
+            <button class="cart-item-qty-btn decrease-qty" data-index="${index}">-</button>
+            <span class="cart-item-qty-val">${item.qty}</span>
+            <button class="cart-item-qty-btn increase-qty" data-index="${index}">+</button>
+          </div>
+          <div class="cart-item-remove" data-index="${index}">Remove</div>
+        </div>
+      `;
+      cartDrawerBody.appendChild(itemRow);
+    });
+
+    // Wire up events inside the cart list
+    document.querySelectorAll(".decrease-qty").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const index = parseInt(e.target.getAttribute("data-index"));
+        if (cartItems[index].qty > 1) {
+          cartItems[index].qty--;
+        } else {
+          cartItems.splice(index, 1);
+        }
+        updateCartDrawerUI();
+      });
+    });
+
+    document.querySelectorAll(".increase-qty").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const index = parseInt(e.target.getAttribute("data-index"));
+        cartItems[index].qty++;
+        updateCartDrawerUI();
+      });
+    });
+
+    document.querySelectorAll(".cart-item-remove").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const index = parseInt(e.target.getAttribute("data-index"));
+        cartItems.splice(index, 1);
+        updateCartDrawerUI();
+      });
+    });
+  };
+
   // Add to Cart Action
   const handleAddToCart = () => {
     const selectedPack = packData[selectedPackIndex];
-    cartCount += selectedPack.quantity;
     
-    // Update header badge
-    cartBadge.textContent = cartCount;
-    cartBadge.style.display = "flex";
+    // Check if item already exists in cart
+    const existingIndex = cartItems.findIndex(item => item.id === selectedPack.id);
     
-    // Success confirmation
-    alert(`Successfully added ${selectedPack.title} to your cart!`);
+    if (existingIndex > -1) {
+      cartItems[existingIndex].qty++;
+    } else {
+      cartItems.push({
+        id: selectedPack.id,
+        title: selectedPack.title,
+        price: selectedPack.price,
+        qty: 1,
+        img: "images/collagen_jar.png"
+      });
+    }
+
+    // Refresh UI
+    updateCartDrawerUI();
+
+    // Automatically slide cart drawer open
+    openCart();
   };
 
   if (addToCartBtn) addToCartBtn.addEventListener("click", handleAddToCart);
@@ -143,7 +265,32 @@ document.addEventListener("DOMContentLoaded", () => {
   if (buyNowLink) {
     buyNowLink.addEventListener("click", () => {
       const selectedPack = packData[selectedPackIndex];
-      alert(`Proceeding to checkout with ${selectedPack.title} for ${formatPrice(selectedPack.price)}!`);
+      // When buying now, we push it to cart and open cart drawer
+      const existingIndex = cartItems.findIndex(item => item.id === selectedPack.id);
+      if (existingIndex > -1) {
+        cartItems[existingIndex].qty++;
+      } else {
+        cartItems.push({
+          id: selectedPack.id,
+          title: selectedPack.title,
+          price: selectedPack.price,
+          qty: 1,
+          img: "images/collagen_jar.png"
+        });
+      }
+      updateCartDrawerUI();
+      openCart();
+    });
+  }
+
+  if (cartCheckoutBtn) {
+    cartCheckoutBtn.addEventListener("click", () => {
+      let subtotal = 0;
+      cartItems.forEach(item => subtotal += item.price * item.qty);
+      alert(`Checkout processed successfully! Total order amount: ${formatPrice(subtotal)}. Thank you for shopping!`);
+      cartItems = [];
+      updateCartDrawerUI();
+      closeCart();
     });
   }
 
